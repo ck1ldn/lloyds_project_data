@@ -3,6 +3,13 @@
 
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+
 
 # File paths
 customer_csv     = "customer_demographic.csv"
@@ -71,3 +78,62 @@ df = df.merge(agg_support, on="customerid", how="left")
 # ---- Final check ----
 print("Final merged dataset:", df.shape)
 print(df.head())
+
+
+# Churn rate
+print("Churn rate:", df['churnstatus'].mean())
+
+# Missing values
+import missingno as msno
+msno.matrix(df)
+plt.show()
+
+# Numeric distributions
+df.describe()
+
+
+
+
+# Split X/y
+X = df.drop(columns=['churnstatus','customerid'])
+y = df['churnstatus']
+
+# Identify numeric and categorical columns
+num_cols = X.select_dtypes(include=np.number).columns
+cat_cols = X.select_dtypes(include='object').columns
+
+# Numeric pipeline
+numeric_transformer = Pipeline([
+    ('imputer', SimpleImputer(strategy='median')),
+    ('scaler', StandardScaler())
+])
+
+# Categorical pipeline
+categorical_transformer = Pipeline([
+    ('imputer', SimpleImputer(strategy='most_frequent')),
+    ('onehot', OneHotEncoder(handle_unknown='ignore', sparse_output=False))
+])
+
+
+# Combine
+preprocessor = ColumnTransformer([
+    ('num', numeric_transformer, num_cols),
+    ('cat', categorical_transformer, cat_cols)
+])
+
+# Fit transform
+X_prepared = preprocessor.fit_transform(X)
+
+print("Prepared dataset shape:", X_prepared.shape)
+
+
+# Save cleaned merged dataset
+df.to_csv("cleaned_customers.csv", index=False)
+
+# Save processed feature matrix and labels
+pd.DataFrame(X_prepared, columns=preprocessor.get_feature_names_out()).to_csv("X_prepared.csv", index=False)
+y.to_csv("y_labels.csv", index=False)
+
+# Save preprocessing pipeline
+import joblib
+joblib.dump(preprocessor, "preprocessor.joblib")
